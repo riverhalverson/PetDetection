@@ -12,14 +12,15 @@ import asyncio
 from openai import AsyncOpenAI
 from openai.helpers import LocalAudioPlayer
 
+#activate venv in conda: 
+#to run in cmd window with conda, 
+
 def main():
+    aiTest = False
+
     # Define path to model and other user variables
-    model_path = 'Model/my_model/my_model.pt'  # Path to model
+    model_path = 'Model/best.pt'  # Path to model
     min_thresh = 0.50  # Minimum detection threshold
-
-
-    display = Display()
-    display.setResolution(1920, 1080)
 
     # Check for valid model file and that it exists
     if (not os.path.exists(model_path)):
@@ -30,100 +31,129 @@ def main():
     model = YOLO(model_path, task='detect')
     labels = model.names
 
-    # Initialize camera
-    display.initializeCamera()
-
     # Initialize pygame for audio
     pygame.mixer.init()
 
-    # Set bounding box colors.
-    bbox_colors = [(164, 120, 87), (68, 148, 228), (93, 97, 209)]
+    if not aiTest:
 
-    # Initialize variable to hold every pet detected in this frame
-    currentPetName = ""
-    petsDetected = []
-    speaking = False
-    detectedTime = 0
+        display = Display()
+        display.setResolution(1920, 1080)
 
-    # Begin inference loop
-    while True:
+              # Initialize camera
+        display.initializeCamera()
 
-        # Grab frame from counter
-        frame = display.getFrame()
+        # Set bounding box colors.
+        bbox_colors = [(164, 120, 87), (68, 148, 228), (93, 97, 209)]
 
-        # Run inference on frame with tracking enabled (tracking helps object to be consistently detected in each frame)
-        results = model.track(frame, verbose=False)
+        # Initialize variable to hold every pet detected in this frame
+        currentPetName = ""
+        petsDetected = []
+        speaking = False
+        detectedTime = 0
 
-        # Extract results
-        detections = results[0].boxes
+        # Begin inference loop
+        while True:
+            # Grab frame from counter
+            frame = display.getFrame()
 
-        # Go through each detection and get bbox coords, confidence and class
-        for i in range(len(detections)):
+            if frame is None or frame.size == 0:
+                print("Warning: Failed to grab frame, retrying...")
+                continue
 
-            # Get bounding box coordinates
-            # Ultralytics returns results in Tensor format, which have to be converted to a regular Python array
-            xyxy_tensor = detections[i].xyxy.cpu()  # Detections in Tensor format in CPU memory
-            xyxy = xyxy_tensor.numpy().squeeze()  # Convert tensors to Numpy array
-            xMin, yMin, xMax, yMax = xyxy.astype(int)  # Extract individual coordinates and convert to int
+            # Run inference on frame with tracking enabled (tracking helps object to be consistently detected in each frame)
+            results = model.track(frame, verbose=False)
 
-            # Get bounding box class ID and name
-            classidx = int(detections[i].cls.item())
-            className = labels[classidx]
+            # Extract results
+            detections = results[0].boxes
 
-            # Get bounding box confidence
-            confidence = detections[i].conf.item()
+            # Go through each detection and get bbox coords, confidence and class
+            for i in range(len(detections)):
 
-            # Draw box around detected pet if confidence is high enough
-            if confidence > 0.7:
-                # Draw box around pet
-                color = bbox_colors[classidx % 10]
-                display.drawLabel(frame, className, confidence, xMin, yMin, xMax, yMax, 2, color)
+                # Get bounding box coordinates
+                # Ultralytics returns results in Tensor format, which have to be converted to a regular Python array
+                xyxy_tensor = detections[i].xyxy.cpu()  # Detections in Tensor format in CPU memory
+                xyxy = xyxy_tensor.numpy().squeeze()  # Convert tensors to Numpy array
+                xMin, yMin, xMax, yMax = xyxy.astype(int)  # Extract individual coordinates and convert to int
 
-                # Add pet to list of detected pets
-                petsDetected.append(className)
+                # Get bounding box class ID and name
+                classidx = int(detections[i].cls.item())
+                className = labels[classidx]
 
-                key = cv2.waitKey(5)
+                # Get bounding box confidence
+                confidence = detections[i].conf.item()
 
-        #display.showResults(frame)  # Display image
+                # Draw box around detected pet if confidence is high enough
+                if confidence > 0.7:
+                    # Draw box around pet
+                    color = bbox_colors[classidx % 10]
+                    display.drawLabel(frame, className, confidence, xMin, yMin, xMax, yMax, 2, color)
 
-        # If array has filled up, check to see if only one unique pet
-        if (len(petsDetected) == 60) and speaking == False:
-            currentPetName = getCurrentPet(petsDetected)
+                    # Add pet to list of detected pets
+                    petsDetected.append(className)
 
-            # Clean up array for next detection
-            petsDetected = []
+                    key = cv2.waitKey(5)
 
-            if(currentPetName != ""):
-                '''
-                currentTime = datetime.now()
-                minute = currentTime.minute
-                detectedTime = minute
-                speaking = True
+            #display.showResults(frame)  # Display image
 
-                prompt = Prompts()
-                speechFile = prompt.getPetSonaVoice(currentPetName)
-                sound = pygame.mixer.Sound(speechFile)
-                sound.play()
-                #playsound(speechFile)
-                '''
-                prompt = Prompts()
-                asyncio.run(prompt.getPetSonaVoiceRT(currentPetName))
+            # If array has filled up, check to see if only one unique pet
+            if (len(petsDetected) == 60) and speaking == False:
+                currentPetName = getCurrentPet(petsDetected)
+
+                # Clean up array for next detection
+                petsDetected = []
+
+                if(currentPetName != ""):
+                    ''' old way sound was done
+                    currentTime = datetime.now()
+                    minute = currentTime.minute
+                    detectedTime = minute
+                    speaking = True
+
+                    prompt = Prompts()
+                    speechFile = prompt.getPetSonaVoice(currentPetName)
+                    sound = pygame.mixer.Sound(speechFile)
+                    sound.play()
+                    #playsound(speechFile)
+                    '''
+
+                    # save image
+                    screenshotFile = display.saveFrame(frame)
+
+                    prompt = Prompts()
+                    asyncio.run(prompt.getPetSonaVoiceRT(currentPetName, screenshotFile))
 
 
-        currentTime = datetime.now()
-        minute = currentTime.minute
-        if(minute > detectedTime):
-            speaking = False
+            currentTime = datetime.now()
+            minute = currentTime.minute
+            if(minute > detectedTime):
+                speaking = False
 
-        display.showResults(frame)  # Display image
+            display.showResults(frame)  # Display image
 
-        key = cv2.waitKey(5)
+            key = cv2.waitKey(5)
 
-        if key == ord('q') or key == ord('Q'):  # Press 'q' to quit
-            break
+            if key == ord('q') or key == ord('Q'):  # Press 'q' to quit
+                break
 
-    # Clean up
-    display.cleanUp()
+        # Clean up
+        display.cleanUp()
+    
+    else:
+        #AI Model and Prompt testing area
+        currentPetName = "Skylar"
+        screenshotFile = "frames\\2026-04-03_12-14-50.jpg"
+
+        prompt = Prompts()
+
+        prompt.getPetSonaText(currentPetName, screenshotFile)
+
+        #asyncio.run(prompt.getPetSonaVoiceRT(currentPetName)) 
+
+
+
+
+
+
 
 # Gets current pet that has been on screen for roughly 30 seconds
 def getCurrentPet(petArray):

@@ -1,6 +1,7 @@
 import os
 import sys
 import cv2
+from datetime import datetime
 
 class Display:
     frame = None
@@ -29,6 +30,22 @@ class Display:
             print('Error: Problem with camera')
         else:
             return Display.frame
+        
+    def saveFrame(self, frame):
+                #ret, frame = Display.capture.read()
+                currentDateTime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+                fileName = "frames\\" + (currentDateTime + ".jpg")
+
+                #fileName = currentDateTime + ".jpg"
+
+                success = cv2.imwrite(fileName, frame)
+                if success:
+                    print(f"Screenshot {fileName} saved")
+                else:
+                    print(f"Error: Failed to save {fileName}")
+
+                return fileName
         
     def drawBox(self, frame, xMin, yMin, xMax, yMax, color, shape):
         cv2.rectangle(frame, (xMin,yMin), (xMax,yMax), color, shape)

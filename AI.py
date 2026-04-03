@@ -1,5 +1,6 @@
 from datetime import datetime
 import openai
+from anthropic import Anthropic
 import os
 from openai import OpenAI
 from Pets import Pet
@@ -8,30 +9,48 @@ from openai import AsyncOpenAI
 from openai.helpers import LocalAudioPlayer
 from dotenv import load_dotenv
 from pathlib import Path
+import base64
 
 
 class Prompts:
     # Get env variables
     load_dotenv()
     # Get API key from .env
-    api_key = os.getenv("OPENAI_API_KEY")
+    anthApiKey = os.getenv("ANTHROPIC_API_KEY")
+    openaiApiKey = os.getenv("OPENAI_API_KEY")
 
-    # Create OpenAI client
-    client = OpenAI(api_key=api_key)
+    # Create clients
+    anthClient = Anthropic(api_key=anthApiKey)
+    openaiClient = OpenAI(api_key=openaiApiKey)
 
-    def getPetSonaText(self, petName):
+    def getPetSonaText(self, petName, imageLocation):
         pet = Pet()
         pet.setPet(petName)
+        
+        imageDescription = Prompts.getImageDescription(self, imageLocation)
 
-        prompt = ("Give me a funny and goofy biography about my pet, start with greeting them as if you're talking to them" +
-                  ", make it short, no more than 60 words or so, dont use symbols or formatting of any kind," +
-                  " except new line terminating characters, text only. Make it extremely goofy and absolutely unhinged. " +
-                  "Generate this prompt with a temperature of 0.8 for maximum randomness and creativity")
+        prompt = ("""
+                  Give me a funny and extremely goofy short story about my pet, using what they're doing right now as context,
+                  start with greeting them as if you're talking to them, then tell them the story you've written about them
+                  Make it extremely goofy and absolutely unhinged, to a ridiculous level.
+                  """)
+        prompt = Prompts.addImageDescription(self, prompt, imageDescription)
         prompt = Prompts.addPetTraits(self, prompt, pet)
+        prompt = Prompts.addFormattingTraits(self, prompt)
 
-        response = Prompts.client.responses.create(model = "gpt-4.1", input = prompt)
+        print(prompt)
+
+        response = Prompts.anthClient.messages.create(max_tokens=1024, 
+                                                    messages=[
+                                                        {
+                                                            "role": "user",
+                                                            "content": prompt,
+                                                        }
+                                                    ],
+                                                    model="claude-opus-4-6",
+        )
         #result = Prompts.getPlainText(self,response)
-        text = response.output_text
+        text = response.content[0].text
 
         Prompts.readPrompt(self, text)
 
@@ -49,7 +68,7 @@ class Prompts:
 
         prompt = Prompts.getPetSonaText(self, petName)
 
-        with Prompts.client.audio.speech.with_streaming_response.create(
+        with Prompts.oepnaiClient.audio.speech.with_streaming_response.create(
                 model = "gpt-4o-mini-tts",
                 voice = "onyx",
                 input = prompt,
@@ -59,11 +78,12 @@ class Prompts:
 
         return speechFile
 
-    async def getPetSonaVoiceRT(self, petName):
+    async def getPetSonaVoiceRT(self, petName, imageLocation):
         pet = Pet()
         pet.setPet(petName)
 
-        prompt = Prompts.getPetSonaText(self, petName)
+        prompt = Prompts.getPetSonaText(self, petName, imageLocation)
+
 
         openai = AsyncOpenAI()
         async with openai.audio.speech.with_streaming_response.create(
@@ -75,10 +95,55 @@ class Prompts:
         ) as response:
             await LocalAudioPlayer().play(response)
 
+    def getImageDescription(self, imageLocation):
+        prompt = """Describe what the pet is doing in this image, do not mention the detection label or the box in your response,
+                focus on the pet and do not get destracted by the things around the room, unless its right by the pet. do not guess
+                the pets breed or type. But you can guess on things such as their mood and what they're doing
+                """
+
+        with open(imageLocation, "rb") as image_file:
+            imageData = base64.standard_b64encode(image_file.read()).decode("utf-8")
+
+        imageDescription = Anthropic().messages.create(
+            model="claude-opus-4-6",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/jpeg",
+                                "data": imageData,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+        )
+        return imageDescription.content[0].text
+    
+    def addImageDescription(self, prompt, imageDescription):
+        prompt += ("""Here is what you see, use the following as a reference to build your story and to give
+                   relevant context: """ + imageDescription)
+        
+        return prompt
+
+    def addFormattingTraits(self, prompt):
+        prompt += ("""Format the text output while following these rules: 
+                    dont use symbols or other formatting of any kind,
+                    except new line terminating characters, text only. Add a blank newline before the prompt
+                    so there is a blank space above it when I print it, and another one at the end""")
+        
+        return prompt
+        
 
     def addPetTraits(self, prompt, pet):
         prompt += ("Their name is: " + pet.name + ", they are a " + pet.gender + " " + pet.species + ". They like: " +
-                  pet.likes + " and they dislike: " + pet.dislikes)
+                  pet.likes + " and they dislike: " + pet.dislikes + ". You can use some of them but not all of them")
 
         return prompt
 
