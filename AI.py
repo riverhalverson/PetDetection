@@ -31,7 +31,7 @@ class Prompts:
 
         prompt = ("""
                   Give me a funny and extremely goofy short story about my pet, using what they're doing right now as context,
-                  start with greeting them as if you're talking to them, then tell them the story you've written about them
+                  then tell us a story about how the pet got in this situation,
                   Make it extremely goofy and absolutely unhinged, to a ridiculous level.
                   """)
         prompt = Prompts.addImageDescription(self, prompt, imageDescription)
@@ -51,6 +51,8 @@ class Prompts:
         )
         #result = Prompts.getPlainText(self,response)
         text = response.content[0].text
+
+        Prompts.saveOutput(self, text)
 
         Prompts.readPrompt(self, text)
 
@@ -98,7 +100,8 @@ class Prompts:
     def getImageDescription(self, imageLocation):
         prompt = """Describe what the pet is doing in this image, do not mention the detection label or the box in your response,
                 focus on the pet and do not get destracted by the things around the room, unless its right by the pet. do not guess
-                the pets breed or type. But you can guess on things such as their mood and what they're doing
+                the pets breed or type. But you can guess on things such as their mood and what they're doing, make what they're 
+                doing right now as the basis of the story, it should be the focus.
                 """
 
         with open(imageLocation, "rb") as image_file:
@@ -135,8 +138,8 @@ class Prompts:
     def addFormattingTraits(self, prompt):
         prompt += ("""Format the text output while following these rules: 
                     dont use symbols or other formatting of any kind,
-                    except new line terminating characters, text only. Add a blank newline before the prompt
-                    so there is a blank space above it when I print it, and another one at the end""")
+                    except new line terminating characters, text only. Add a newline before and after the finished 
+                   prompt""")
         
         return prompt
         
@@ -162,3 +165,12 @@ class Prompts:
         result = result[:endingIndex]
 
         return result
+    
+    def saveOutput(self, outputText):
+        currentDateTime = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+
+        with open("output.txt", "a") as file:
+            file.write("\n\n")
+            file.write(currentDateTime)
+            file.write(outputText)
+            file.write("\n\n")

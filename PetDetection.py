@@ -115,7 +115,6 @@ def main():
                     sound.play()
                     #playsound(speechFile)
                     '''
-
                     # save image
                     screenshotFile = display.saveFrame(frame)
 
@@ -140,19 +139,14 @@ def main():
     
     else:
         #AI Model and Prompt testing area
-        currentPetName = "Skylar"
-        screenshotFile = "frames\\2026-04-03_12-14-50.jpg"
+        currentPetName = "Smudge"
+        screenshotFile = "frames\\IMG_3360.jpeg"
 
         prompt = Prompts()
 
         prompt.getPetSonaText(currentPetName, screenshotFile)
 
         #asyncio.run(prompt.getPetSonaVoiceRT(currentPetName)) 
-
-
-
-
-
 
 
 # Gets current pet that has been on screen for roughly 30 seconds
